@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: viralyzi
+    runtime: node
+    buildCommand: npm install
+    startCommand: node webhook.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
