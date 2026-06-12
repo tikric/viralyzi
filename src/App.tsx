@@ -430,10 +430,24 @@ export default function App() {
             data.apiLog || `Disparo de teste bem-sucedido para o número: ${testPhoneInput}`
           );
         } else {
-          pushClientToast(
-            "Simulado (Sem Chaves) ⚠️",
-            `Nenhuma API (Meta ou Evolution) está configurada. Uma simulação realista foi gerada para o número: ${testPhoneInput}`
+          const isFailureOrWarning = data.apiLog && (
+            data.apiLog.includes("Falha") || 
+            data.apiLog.includes("Erro") || 
+            data.apiLog.includes("desconectado") ||
+            data.apiLog.includes("deslogado") ||
+            data.apiLog.includes("não foram configuradas")
           );
+          if (isFailureOrWarning) {
+            pushClientToast(
+              "Falha no Envio Real ⚠️",
+              data.apiLog
+            );
+          } else {
+            pushClientToast(
+              "Simulado (Sem Chaves) ⚠️",
+              `Nenhuma API (Meta ou Evolution) está ativa ou configurada. Simulação gerada para: ${testPhoneInput}`
+            );
+          }
         }
       } else {
         const data = await res.json();
