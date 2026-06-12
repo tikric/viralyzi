@@ -154,13 +154,55 @@ export async function sendBaileysMessage(to: string, text: string) {
     throw new Error("WhatsApp não está conectado no Baileys. Verifique se escaneou o QR Code.");
   }
 
-  // Formata o número (removendo caracteres especiais e adicionando sufixo do whatsapp @s.whatsapp.net)
   let cleanNumber = to.replace(/\D/g, "");
-  if (!cleanNumber.endsWith("@s.whatsapp.net")) {
-    cleanNumber = `${cleanNumber}@s.whatsapp.net`;
+  let jidsToTry: string[] = [];
+
+  if (cleanNumber.startsWith("55")) {
+    if (cleanNumber.length === 13) {
+      const ddd = cleanNumber.substring(2, 4);
+      const rest = cleanNumber.substring(5);
+      const jidWithout9 = `55${ddd}${rest}@s.whatsapp.net`;
+      const jidWith9 = `${cleanNumber}@s.whatsapp.net`;
+      jidsToTry.push(jidWithout9);
+      jidsToTry.push(jidWith9);
+    } else if (cleanNumber.length === 12) {
+      const ddd = cleanNumber.substring(2, 4);
+      const rest = cleanNumber.substring(4);
+      const jidWith9 = `55${ddd}9${rest}@s.whatsapp.net`;
+      const jidWithout9 = `${cleanNumber}@s.whatsapp.net`;
+      jidsToTry.push(jidWithout9);
+      jidsToTry.push(jidWith9);
+    } else {
+      if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+        jidsToTry.push(`${cleanNumber}@s.whatsapp.net`);
+      } else {
+        jidsToTry.push(cleanNumber);
+      }
+    }
+  } else {
+    if (!cleanNumber.endsWith("@s.whatsapp.net")) {
+      jidsToTry.push(`${cleanNumber}@s.whatsapp.net`);
+    } else {
+      jidsToTry.push(cleanNumber);
+    }
   }
 
-  console.log(`[Baileys] Enviando mensagem para ${cleanNumber}: ${text}`);
-  const result = await sock.sendMessage(cleanNumber, { text: text });
+  let finalJid = jidsToTry[0];
+  try {
+    console.log(`[Baileys] Verificando JIDs ativos no WhatsApp para: ${JSON.stringify(jidsToTry)}`);
+    for (const jid of jidsToTry) {
+      const result = await sock.onWhatsApp(jid);
+      if (result && result.length > 0 && result[0].exists) {
+        finalJid = result[0].jid;
+        console.log(`[Baileys] JID verificado ativo encontrado: ${finalJid}`);
+        break;
+      }
+    }
+  } catch (err) {
+    console.warn(`[Baileys] Erro ao validar JID via onWhatsApp, prosseguindo com o primeiro formatado: ${finalJid}`, err);
+  }
+
+  console.log(`[Baileys] Enviando mensagem final para ${finalJid}: ${text}`);
+  const result = await sock.sendMessage(finalJid, { text: text });
   return result;
 }
