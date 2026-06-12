@@ -1,0 +1,8 @@
+node_modules
+dist
+baileys_auth_session
+.git
+.github
+*.log
+.DS_Store
+.env

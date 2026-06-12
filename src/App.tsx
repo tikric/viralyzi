@@ -2085,8 +2085,16 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                     Sua automação com o WhatsApp local está ativa por padrão. Não há necessidade de intermediários ou de pagar taxas adicionais.
                   </p>
                 </div>
-                <div className="text-[10px] bg-slate-900 text-emerald-400 font-mono font-bold px-3 py-1.5 rounded-lg border border-slate-800 select-none">
-                  🟢 CONEXÃO REAL ATIVA
+                <div className="text-[10px] bg-slate-900 font-mono font-bold px-3 py-1.5 rounded-lg border border-slate-800 select-none">
+                  {baileysStatus === "connected" ? (
+                    <span className="text-emerald-400">🟢 CELULAR CONECTADO</span>
+                  ) : baileysStatus === "qr" ? (
+                    <span className="text-blue-400">🔵 AGUARDANDO ESCANEAR QR</span>
+                  ) : baileysStatus === "connecting" ? (
+                    <span className="text-amber-400">🟡 INICIANDO MOTOR...</span>
+                  ) : (
+                    <span className="text-slate-400">🔌 MOTOR PREPARADO (OFFLINE)</span>
+                  )}
                 </div>
               </div>
 

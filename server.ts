@@ -37,9 +37,7 @@ function getGeminiClient(): GoogleGenAI | null {
 // Global In-Memory Store centered entirely on 3D Printing & TikTok / Instagram / WhatsApp ("Zap")
 const db = {
   accounts: [
-    { id: "1", platform: "tiktok", handle: "@imperio3d_print", name: "Império do 3D", avatar: "https://images.unsplash.com/photo-1615840287214-7fe58a8f3685?w=150", followers: 85400, active: true },
-    { id: "2", platform: "instagram", handle: "@imperio3d.art", name: "Império 3D Instagram", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150", followers: 23100, active: true },
-    { id: "3", platform: "whatsapp", handle: "+55 (11) 99876-5432", name: "Zap Oficial Imperio3D", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150", followers: 4200, active: true }
+    { id: "1", platform: "tiktok", handle: "@imperio3d_print", name: "Império do 3D", avatar: "https://images.unsplash.com/photo-1615840287214-7fe58a8f3685?w=150", followers: 85400, active: true }
   ],
   trends: [
     { id: "t1", title: "Miniaturas de Dragão Articulado Cristalino (Satisfatório 3D)", platform: "tiktok", change: "+524%", category: "Impressão 3D/Filamentos", engagement: "Altíssimo", desc: "Vídeos ASMR destacando a flexibilidade e o brilho de dragões impressos em filamento silk arco-íris.", hashtags: ["#3dprinting #satisfying #articulateddragon #impressao3d"] },
@@ -158,10 +156,37 @@ const db = {
   ]
 };
 
+// Helper to get accounts list including real connected Baileys WhatsApp
+async function getAccountsList() {
+  const wppStatus = await getWhatsAppStatus();
+  let list = [...db.accounts];
+  
+  if (wppStatus.status === "connected" && wppStatus.user) {
+    const userHandle = "+" + wppStatus.user.id;
+    const userName = wppStatus.user.name || "Meu WhatsApp (Zap)";
+    
+    // Check if we already have the real WhatsApp in list, otherwise inject it
+    const hasRealWpp = list.some(acc => acc.platform === "whatsapp" && acc.handle === userHandle);
+    if (!hasRealWpp) {
+      list.push({
+        id: "real-whatsapp",
+        platform: "whatsapp",
+        handle: userHandle,
+        name: userName,
+        avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150",
+        followers: 1, // Active live connection indicator
+        active: true
+      });
+    }
+  }
+  return list;
+}
+
 // API: Get app state
-app.get("/api/dashboard", (req, res) => {
+app.get("/api/dashboard", async (req, res) => {
+  const accountsList = await getAccountsList();
   res.json({
-    accounts: db.accounts,
+    accounts: accountsList,
     trends: db.trends,
     campaigns: db.campaigns,
     schedulers: db.schedulers,
@@ -175,7 +200,7 @@ app.get("/api/dashboard", (req, res) => {
 });
 
 // API: Save Account
-app.post("/api/accounts", (req, res) => {
+app.post("/api/accounts", async (req, res) => {
   const { platform, handle, name, avatar } = req.body;
   if (!platform || !handle || !name) {
     return res.status(400).json({ error: "Parâmetros de conta incompletos." });
@@ -191,18 +216,25 @@ app.post("/api/accounts", (req, res) => {
     active: true
   };
   db.accounts.push(newAccount);
-  res.json({ success: true, account: newAccount, accounts: db.accounts });
+  const accountsList = await getAccountsList();
+  res.json({ success: true, account: newAccount, accounts: accountsList });
 });
 
 // NEW API: Delete connected channel
-app.delete("/api/accounts/:id", (req, res) => {
+app.delete("/api/accounts/:id", async (req, res) => {
   const { id } = req.params;
   const initialLen = db.accounts.length;
   db.accounts = db.accounts.filter(acc => acc.id !== id);
-  if (db.accounts.length === initialLen) {
+  if (db.accounts.length === initialLen && id !== "real-whatsapp") {
     return res.status(404).json({ error: "Conta não localizada." });
   }
-  res.json({ success: true, accounts: db.accounts });
+  
+  if (id === "real-whatsapp") {
+    await disconnectWhatsApp();
+  }
+
+  const accountsList = await getAccountsList();
+  res.json({ success: true, accounts: accountsList });
 });
 
 // API: Add Scheduled Video

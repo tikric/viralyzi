@@ -9,6 +9,7 @@ let connectionStatus: "offline" | "connecting" | "qr" | "connected" | "error" = 
 let lastQrString: string | null = null;
 let qrBase64Image: string | null = null;
 let connectionError: string | null = null;
+let connectedUser: { id: string; name?: string } | null = null;
 
 const authPath = path.join(process.cwd(), "baileys_auth_session");
 
@@ -16,7 +17,8 @@ export async function getWhatsAppStatus() {
   return {
     status: connectionStatus,
     qr: qrBase64Image,
-    error: connectionError
+    error: connectionError,
+    user: connectedUser
   };
 }
 
@@ -31,6 +33,7 @@ export async function disconnectWhatsApp() {
   connectionStatus = "offline";
   lastQrString = null;
   qrBase64Image = null;
+  connectedUser = null;
   
   // Limpa os arquivos de autenticação
   if (fs.existsSync(authPath)) {
@@ -87,6 +90,15 @@ export async function initBaileys() {
         lastQrString = null;
         qrBase64Image = null;
         connectionError = null;
+
+        if (sock && sock.user) {
+          const rawId = sock.user.id;
+          const cleanId = rawId.split(":")[0]?.split("@")[0] || rawId;
+          connectedUser = {
+            id: cleanId,
+            name: sock.user.name || "Meu WhatsApp"
+          };
+        }
       }
 
       if (connection === "close") {
@@ -99,6 +111,7 @@ export async function initBaileys() {
         connectionStatus = "offline";
         lastQrString = null;
         qrBase64Image = null;
+        connectedUser = null;
 
         if (errorStatusCode === DisconnectReason.loggedOut) {
           console.log("[Baileys] Desconectado por deslogar dispositivo. Limpando sessão...");

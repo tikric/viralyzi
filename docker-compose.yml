@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  maquina-grafica-3d:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maquina-grafica-3d
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Opcional: Adicione sua chave da API Gemini aqui se desejar
+      # - GEMINI_API_KEY=sua_chave_aqui
+    volumes:
+      # Muito IMPORTANTE: Mantém a sessão do QR Code salva no seu computador/servidor local.
+      # Assim, se o container for atualizado ou desligado, o WhatsApp continuará conectado!
+      - ./baileys_auth_session:/app/baileys_auth_session
