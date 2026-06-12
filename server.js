@@ -8,10 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serve os arquivos do site (pasta dist depois do build)
-app.use(express.static('dist'));
+// Serve arquivos estáticos da pasta src (seus arquivos TSX)
+app.use(express.static('src'));
+app.use(express.static('.'));
 
-// Rota do QR Code para conectar o WhatsApp
+// Rota do QR Code
 app.get('/qr', async (req, res) => {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     const sock = makeWASocket({
@@ -30,11 +31,13 @@ app.get('/qr', async (req, res) => {
     });
 });
 
-// Qualquer outra rota volta para o index.html do site
+// Rota principal - serve o index.html da pasta src
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const indexPath = path.join(__dirname, 'src', 'index.html');
+    res.sendFile(indexPath);
 });
 
 app.listen(port, () => {
     console.log(`Servidor rodando na porta ${port}`);
+    console.log(`Site: https://viralyzi-4.onrender.com`);
 });
