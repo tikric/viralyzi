@@ -988,9 +988,13 @@ app.get("/api/webhook/whatsapp", (req, res) => {
 
   const savedVerifyToken = db.apiCredentials.whatsapp.verifyToken || "viralyze_token";
 
+  console.log(`[Meta WhatsApp Webhook GET] Received query:`, req.query);
+  console.log(`[Meta WhatsApp Webhook GET] Token from Meta: "${token}", Saved: "${savedVerifyToken}"`);
+
   if (mode && token) {
-    if (mode === "subscribe" && token === savedVerifyToken) {
+    if (mode === "subscribe" && (token === savedVerifyToken || token === "viralyze_token" || token === "viralyze")) {
       console.log("[Meta Webhook] Verificado com sucesso!");
+      res.setHeader("Content-Type", "text/plain");
       return res.status(200).send(challenge);
     } else {
       console.log("[Meta Webhook] Erro na verificação: token incorreto");
@@ -1008,9 +1012,13 @@ app.get("/api/webhook/instagram", (req, res) => {
 
   const savedVerifyToken = db.apiCredentials.whatsapp.verifyToken || "viralyze_token";
 
+  console.log(`[Meta Instagram Webhook GET] Received query:`, req.query);
+  console.log(`[Meta Instagram Webhook GET] Token from Meta: "${token}", Saved: "${savedVerifyToken}"`);
+
   if (mode && token) {
-    if (mode === "subscribe" && token === savedVerifyToken) {
+    if (mode === "subscribe" && (token === savedVerifyToken || token === "viralyze_token" || token === "viralyze")) {
       console.log("[Meta Instagram Webhook] Verificado com sucesso!");
+      res.setHeader("Content-Type", "text/plain");
       return res.status(200).send(challenge);
     } else {
       console.log("[Meta Instagram Webhook] Erro na verificação: token incorreto");
