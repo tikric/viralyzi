@@ -1,10 +1,19 @@
 import { default as makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
+import fs from 'fs';
+
+const WEBHOOK_URL = 'https://ais-pre-pnhih646qlflvtbr3yarpo-299564898302.us-east5.run.app/api/webhook/whatsapp';
+
+try {
+    if (fs.existsSync('auth_info')) {
+        fs.rmSync('auth_info', { recursive: true, force: true });
+        console.log('Sessao antiga removida');
+    }
+} catch (err) {}
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
@@ -12,30 +21,43 @@ async function connectToWhatsApp() {
         syncFullHistory: false
     });
 
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', async (update) =
         const { connection, lastDisconnect, qr } = update;
-        
         if (qr) {
-            console.log('📱 Escaneie o QR Code com seu WhatsApp:');
+            console.log('ESCANEIE O QR CODE:');
             qrcode.generate(qr, { small: true });
         }
-
-        if (connection === 'open') {
-            console.log('✅ WhatsApp conectado com sucesso!');
-        }
-
+        if (connection === 'open') console.log('WhatsApp conectado!');
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            
-            console.log('❌ Conexão fechada. Status:', lastDisconnect?.error?.output?.statusCode);
-            
             if (shouldReconnect) {
-                console.log('🔄 Reconectando automaticamente...');
+                console.log('Reconectando...');
                 connectToWhatsApp();
-            } else {
-                console.log('🔴 Sessão encerrada. Execute o programa novamente para escanear o QR Code.');
             }
         }
+    });
+
+    sock.ev.on('messages.upsert', async ({ messages }) =
+        const msg = messages[0];
+        if (!msg.message) return;
+        let fromNumber = msg.key.remoteJid.replace('@s.whatsapp.net', '');
+        const payload = {
+            object: "whatsapp_business_account",
+            entry: [{
+                changes: [{
+                    value: {
+                        contacts: [{ profile: { name: "Cliente" } }],
+                        messages: [{ from: fromNumber, text: { body: text } }]
+                    }
+                }]
+            }]
+        };
+        await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        console.log('Mensagem enviada para Google Studio:', text);
     });
 
     sock.ev.on('creds.update', saveCreds);
