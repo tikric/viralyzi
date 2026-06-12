@@ -1,8 +1,0 @@
-node_modules
-npm-debug.log
-.git
-.gitignore
-README.md
-.vscode
-auth_info
-baileys_auth_session
