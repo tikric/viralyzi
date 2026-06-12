@@ -253,6 +253,18 @@ export default function Overview({
               </div>
             </div>
           )}
+
+          {!graphCampaign && (
+            <div className="h-64 rounded-xl bg-slate-900/60 p-6 flex flex-col items-center justify-center border border-slate-800/80 text-center space-y-3">
+              <BarChart2 className="text-slate-600 animate-pulse" size={36} />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-white">Nenhum Post Sincronizado</p>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  Selecione sua conta real e realize configurações de Webhook do Instagram Direct ou WhatsApp Cloud nas configurações para sincronizar e mensurar campanhas ativas.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sentiment Analysis Column */}
@@ -275,9 +287,9 @@ export default function Overview({
                   <span className="text-slate-400 font-mono">Dúvidas ({graphCampaign.sentiment.neutral}%)</span>
                   <span className="text-rose-400">Reclamações ({graphCampaign.sentiment.negative}%)</span>
                 </div>
-                <div className="w-full flex h-3 rounded-full overflow-hidden bg-slate-800">
-                  <div style={{ width: `${graphCampaign.sentiment.positive}%` }} className="bg-emerald-400 h-full"></div>
-                  <div style={{ width: `${graphCampaign.sentiment.neutral}%` }} className="bg-slate-400 h-full"></div>
+                <div className="w-full flex h-3 rounded-full overflow-hidden bg-slate-850">
+                  <div style={{ width: `${graphCampaign.sentiment.positive}%` }} className="bg-emerald-400-h-full"></div>
+                  <div style={{ width: `${graphCampaign.sentiment.neutral}%` }} className="bg-slate-450 h-full"></div>
                   <div style={{ width: `${graphCampaign.sentiment.negative}%` }} className="bg-rose-500 h-full"></div>
                 </div>
               </div>
@@ -316,19 +328,16 @@ export default function Overview({
               </div>
             </div>
           ) : (
-            <div className="text-center py-6 text-slate-500 text-xs">Não há campanha ativa no momento.</div>
+            <div className="p-6 bg-slate-950/70 rounded-xl border border-slate-800/50 text-center space-y-2 my-auto">
+              <PieChart className="text-slate-600 mx-auto" size={28} />
+              <p className="text-xs font-semibold text-slate-305">Aguardando Interações Reais</p>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                Nenhum desejo ou tag de comentário extraído por IA ainda. Conecte seu Webhook do Instagram ou WhatsApp Cloud nas configurações para começar a carregar chats de compradores reais.
+              </p>
+            </div>
           )}
 
-          {/* Quick Injector Actions */}
-          <div className="pt-2 border-t border-slate-800/50 flex flex-col gap-2">
-            <button
-              onClick={onInjectSimulatedLead}
-              className="w-full text-xs font-semibold py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-            >
-              <PlusCircle size={14} />
-              Simular Lead Comentando "QUERO"
-            </button>
-          </div>
+
         </div>
       </div>
 

@@ -108,6 +108,13 @@ export default function App() {
   // Custom CRM setting states
   const [newTriggerWord, setNewTriggerWord] = useState("");
 
+  // States for manual adding of real leads
+  const [showAddLeadForm, setShowAddLeadForm] = useState(false);
+  const [newLeadName, setNewLeadName] = useState("");
+  const [newLeadPhone, setNewLeadPhone] = useState("");
+  const [newLeadEmail, setNewLeadEmail] = useState("");
+  const [newLeadInterest, setNewLeadInterest] = useState("Dragão Articulado Silk");
+
   // Real APIs configuration panel states
   const [apiCredTab, setApiCredTab] = useState<"whatsapp" | "evolution" | "instagram" | "facebook" | "direto">("direto");
   const [testPhoneInput, setTestPhoneInput] = useState("");
@@ -336,6 +343,105 @@ export default function App() {
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  // Handler: Remove a lead from CRM (Requested: "retire as coisas falsas de la")
+  const handleDeleteLead = async (leadId: string) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLeads(data.leads);
+        pushClientToast(
+          "Cliente Removido 🗑️",
+          "O lead foi excluído com sucesso do seu funil do CRM."
+        );
+      }
+    } catch (err) {
+      console.error("Erro ao deletar lead:", err);
+    }
+  };
+
+  // Handler: Switch/Reset database entirely to real production mode (clears all fake data)
+  const handleResetToRealProductionMode = async () => {
+    if (!window.confirm("Você tem certeza que deseja deletar todos os dados de simulação e fakes? Suas credenciais de APIs e QR Code do WhatsApp permanecerão salvos, mas os clientes e visualizações fakes de amostra serão zerados para você poder usar somente os seus contatos reais.")) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/reset-database", {
+        method: "POST"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLeads(data.leads);
+        setCampaigns(data.campaigns);
+        setSchedulers(data.schedulers);
+        setNotifications(data.notifications);
+        pushClientToast(
+          "Modo 100% Real Ativado! 🎯",
+          "Todos os dados simulados foram excluídos com sucesso. Agora o sistema opera exclusivamente com seus contatos reais do Zap e do Direct!"
+        );
+      } else {
+        alert("Ocorreu um erro ao limpar os dados.");
+      }
+    } catch (err) {
+      console.error("Erro ao resetar banco:", err);
+    }
+  };
+
+  // Handler: Save manually added real CRM Lead
+  const handleCreateRealLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadName || !newLeadPhone) {
+      alert("Por favor, preencha pelo menos Nome e Celular/Instagram do Cliente!");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newLeadName,
+          email: newLeadEmail || `${newLeadName.toLowerCase().replace(/\s+/g, "")}@cadastro.com`,
+          handle: newLeadPhone,
+          triggerComment: newLeadInterest,
+          sourceVideo: "Cadastro Direto Comercial",
+          crm: crmConfig.selectedCrm
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setLeads(data.leads);
+        if (data.notifications) setNotifications(data.notifications);
+        
+        setNewLeadName("");
+        setNewLeadPhone("");
+        setNewLeadEmail("");
+        setShowAddLeadForm(false);
+        
+        if (data.autoDmSent) {
+          pushClientToast(
+            "Cliente Real Cadastrado! 🚀",
+            "Cliente salvo no funil E o catálogo de boas-vindas foi disparado de verdade para o WhatsApp dele!"
+          );
+        } else {
+          pushClientToast(
+            "Cliente Real Cadastrado! 👤",
+            "Cliente salvo no funil de vendas local com sucesso!"
+          );
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao registrar cliente.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Falha na comunicação com o servidor.");
     }
   };
 
@@ -1706,6 +1812,23 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
                   {/* Left: WhatsApp Baileys Engine & CRM Configurations */}
                   <div className="lg:col-span-1 glass-panel p-5 rounded-2xl h-fit space-y-5">
+                      {/* Real Mode Transition Settings Card */}
+                      <div className="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-xl space-y-3 animate-fadeIn">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block font-bold">💎 MODO REAL CONECTADO</span>
+                          <span className="bg-emerald-400/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold px-2 py-0.5 rounded font-mono">100% PRODUÇÃO</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-300 font-semibold leading-relaxed">
+                          ✓ Sem dados falsos. Toda informação agora é limpa e 100% real!
+                        </p>
+                        <p className="text-[10.5px] text-slate-350 leading-relaxed font-sans">
+                          <strong>⚠️ IMPORTANTE SOBRE SEU WHATSAPP BUSINESS:</strong> Você <strong>NÃO</strong> precisa remover ou desinstalar o aplicativo do WhatsApp Business do seu celular para fazer a integração física!
+                        </p>
+                        <p className="text-[10.5px] text-slate-350 leading-relaxed font-sans">
+                          Basta usar a opção <strong>Zap Direto (QR Code)</strong> abaixo. Ele funciona exatamente como o WhatsApp Web comum: você escaneia o QR Code com o aplicativo atual do seu celular e a automação gerenciará os leads sem afetar seu app local!
+                        </p>
+                      </div>
+
                       <div>
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-emerald-400 flex items-center gap-1.5">
                           <span>🔌</span> WhatsApp Baileys & CRM Local
@@ -1944,38 +2067,124 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                           <h3 className="text-lg font-bold text-white font-display">Contatos Quentes & Funil de Compras</h3>
                           <p className="text-xs text-slate-400">Usuários que engajaram nas postagens orgânicas 3D e foram capturados para vendas no Zap.</p>
                         </div>
-                        <button
-                          onClick={handleInjectSimulatedLead}
-                          className="text-[10px] text-emerald-400 hover:text-emerald-350 border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 rounded-xl cursor-pointer"
-                        >
-                          + Injetar Cliente Simulador
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setShowAddLeadForm(!showAddLeadForm)}
+                            className="text-[10px] text-white hover:bg-slate-800 border border-slate-700 bg-slate-900 px-3 py-1.5 rounded-xl cursor-pointer font-bold transition-all"
+                          >
+                            {showAddLeadForm ? "✕ Fechar Form" : "👤 + Cadastrar Cliente Real"}
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="space-y-3">
-                        {leads.map((l) => (
-                          <div key={l.id} className="p-3 bg-slate-900 rounded-xl border border-slate-850 flex items-center justify-between gap-3">
+                      {/* Manual Add Lead Form */}
+                      {showAddLeadForm && (
+                        <form onSubmit={handleCreateRealLead} className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3 animate-fadeIn">
+                          <h4 className="text-xs font-bold text-white font-mono uppercase text-emerald-400">Cadastrar Cliente de Verdade</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-xs text-white">{l.name}</span>
-                                <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-semibold">
-                                  {l.handle}
-                                </span>
-                              </div>
-                              <p className="text-slate-400 text-xs">Produto de Interesse: <strong className="text-slate-200 font-semibold">{l.interest}</strong></p>
-                              <div className="text-[10px] text-slate-500">
-                                Comentou: <span className="text-amber-400 font-mono font-semibold">"{l.triggerComment}"</span> | Origem: {l.sourceVideo}
-                              </div>
+                              <label className="text-[11px] text-slate-400 block font-mono">NOME COMPLETO</label>
+                              <input
+                                type="text"
+                                value={newLeadName}
+                                onChange={(e) => setNewLeadName(e.target.value)}
+                                placeholder="Ex: Ricardo Maia"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                                required
+                              />
                             </div>
-
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-500 block font-mono">{l.date}</span>
-                              <span className="text-[10px] text-emerald-450 font-bold bg-emerald-500/10 border border-emerald-500/10 px-2 py-0.5 rounded mt-1.5 inline-block font-mono">
-                                Conectado no Zap
-                              </span>
+                            <div className="space-y-1">
+                              <label className="text-[11px] text-slate-400 block font-mono">CELULAR / INSTAGRAM (DDI+DDD+NÚMERO ou @USUÁRIO)</label>
+                              <input
+                                type="text"
+                                value={newLeadPhone}
+                                onChange={(e) => setNewLeadPhone(e.target.value)}
+                                placeholder="Ex: 5511999998888 ou @beatriz"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500/40"
+                                required
+                              />
                             </div>
                           </div>
-                        ))}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[11px] text-slate-400 block font-mono">PRODUTO DE INTERESSE</label>
+                              <select
+                                value={newLeadInterest}
+                                onChange={(e) => setNewLeadInterest(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              >
+                                <option value="Dragão Articulado de Cristal Silk">Dragão Articulado de Cristal Silk</option>
+                                <option value="Suporte de Headset Darth Vader Premium">Suporte de Headset Darth Vader Premium</option>
+                                <option value="Sapo de Sorte com Moeda na Boca Articulado">Sapo de Sorte com Moeda na Boca Articulado</option>
+                                <option value="Luminária Decorativa Stark Tech">Luminária Decorativa Stark Tech</option>
+                                <option value="Peça de Encaixe Personalizada">Peça de Encaixe Personalizada</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] text-slate-400 block font-mono">E-MAIL (OPCIONAL)</label>
+                              <input
+                                type="email"
+                                value={newLeadEmail}
+                                onChange={(e) => setNewLeadEmail(e.target.value)}
+                                placeholder="ricardo@exemplo.com"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="submit"
+                              className="px-4 py-1.5 bg-emerald-400 hover:bg-emerald-350 text-black font-bold text-xs rounded-lg font-mono uppercase cursor-pointer"
+                            >
+                              Salvar e Disparar Boas-Vindas Zap 🚀
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      <div className="space-y-3">
+                        {leads.map((l) => {
+                          const isInsta = l.handle.startsWith("@") || l.crm.toLowerCase().includes("instagram");
+                          return (
+                            <div key={l.id} className="p-3 bg-slate-900 rounded-xl border border-slate-850 flex items-center justify-between gap-3 hover:border-slate-800 transition-all">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs text-white">{l.name}</span>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
+                                    isInsta ? "bg-amber-500/10 text-amber-400" : "bg-emerald-500/10 text-emerald-400"
+                                  }`}>
+                                    {l.handle}
+                                  </span>
+                                  <span className="text-[9px] text-slate-500 font-mono">({isInsta ? "Instagram" : "WhatsApp"})</span>
+                                </div>
+                                <p className="text-slate-400 text-xs">Produto de Interesse: <strong className="text-slate-200 font-semibold">{l.interest}</strong></p>
+                                <div className="text-[10px] text-slate-500">
+                                  Interação: <span className="text-amber-400 font-mono font-semibold">"{l.triggerComment}"</span> | Origem: {l.sourceVideo}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2.5">
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-500 block font-mono">{l.date}</span>
+                                  <span className={`text-[10px] font-bold bg-slate-950 px-2 py-0.5 rounded mt-1.5 inline-block font-mono ${
+                                    isInsta ? "text-amber-400 border border-amber-505/10" : "text-emerald-400 border border-emerald-505/10"
+                                  }`}>
+                                    {isInsta ? "Funil Direct Insta" : "Auto Catálogo Ativo"}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteLead(l.id)}
+                                  className="p-1.5 text-slate-500 hover:text-rose-450 bg-slate-950 rounded-lg hover:bg-slate-850 cursor-pointer border border-slate-850 transition-colors"
+                                  title="Remover Lead"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -2089,40 +2298,110 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-5">
               
-              {/* Active WhatsApp Engine is Zap Direto (Baileys) */}
-              <div className="bg-slate-950/40 p-3.5 border border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3.5">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide font-mono flex items-center gap-1.5">
-                    ⚡ Motor WhatsApp Ativo: Zap Direto (Baileys)
-                  </span>
-                  <p className="text-[10px] text-slate-450 leading-relaxed">
-                    Sua automação com o WhatsApp local está ativa por padrão. Não há necessidade de intermediários ou de pagar taxas adicionais.
-                  </p>
-                </div>
-                <div className="text-[10px] bg-slate-900 font-mono font-bold px-3 py-1.5 rounded-lg border border-slate-800 select-none">
-                  {baileysStatus === "connected" ? (
-                    <span className="text-emerald-400">🟢 CELULAR CONECTADO</span>
-                  ) : baileysStatus === "qr" ? (
-                    <span className="text-blue-400">🔵 AGUARDANDO ESCANEAR QR</span>
-                  ) : baileysStatus === "connecting" ? (
-                    <span className="text-amber-400">🟡 INICIANDO MOTOR...</span>
-                  ) : (
-                    <span className="text-slate-400">🔌 MOTOR PREPARADO (OFFLINE)</span>
-                  )}
+              {/* Custom Selector for WhatsApp Engine */}
+              <div className="bg-slate-950/60 p-4 border border-slate-800 rounded-xl space-y-2">
+                <label className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block font-bold">🎯 Motor Ativo de Mensagens do Chatbot</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setApiCredentials(prev => ({ ...prev, whatsappEngine: "direct" }))}
+                    className={`p-3 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      apiCredentials.whatsappEngine === "direct"
+                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+                    }`}
+                  >
+                    <span>⚡ Zap Direto (Gratuito)</span>
+                    <span className="text-[9px] font-normal leading-normal text-slate-400">Excelente para iniciantes. Conecta seu celular por QR Code direto via Baileys integrado.</span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setApiCredentials(prev => ({ ...prev, whatsappEngine: "evolution" }))}
+                    className={`p-3 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      apiCredentials.whatsappEngine === "evolution"
+                        ? "bg-blue-500/10 border-blue-500/40 text-blue-400"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+                    }`}
+                  >
+                    <span>🚀 Evolution API (API Multiuso)</span>
+                    <span className="text-[9px] font-normal leading-normal text-slate-400">Para agências e lojas de alta escalabilidade. Conecte sua instância externa hospedada.</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setApiCredentials(prev => ({ ...prev, whatsappEngine: "whatsapp" }))}
+                    className={`p-3 rounded-xl border text-xs font-bold text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      apiCredentials.whatsappEngine === "whatsapp"
+                        ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+                    }`}
+                  >
+                    <span>🧬 API de Nuvem Oficial DA META</span>
+                    <span className="text-[9px] font-normal leading-normal text-slate-400">A API corporativa do WhatsApp Cloud. Exige Business Manager da Meta cadastrado.</span>
+                  </button>
                 </div>
               </div>
 
+              {/* Sub-tabs selection */}
+              <div className="flex border-b border-slate-800 gap-1 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setApiCredTab("direto")}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                    apiCredTab === "direto"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold"
+                      : "bg-slate-950/40 border-transparent text-slate-400 hover:text-white"
+                  }`}
+                >
+                  🟢 Configurar Zap Direto (Físico)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApiCredTab("instagram")}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                    apiCredTab === "instagram"
+                      ? "bg-pink-500/10 border-pink-500/30 text-pink-400 font-bold"
+                      : "bg-slate-950/40 border-transparent text-slate-400 hover:text-white"
+                  }`}
+                >
+                  📸 Automação Instagram Direct
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApiCredTab("whatsapp")}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                    apiCredTab === "whatsapp"
+                      ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400 font-bold"
+                      : "bg-slate-950/40 border-transparent text-slate-400 hover:text-white"
+                  }`}
+                >
+                  🧬 Configs Meta WhatsApp Oficial
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApiCredTab("evolution")}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all whitespace-nowrap cursor-pointer ${
+                    apiCredTab === "evolution"
+                      ? "bg-blue-500/10 border-blue-500/30 text-blue-400 font-bold"
+                      : "bg-slate-950/40 border-transparent text-slate-400 hover:text-white"
+                  }`}
+                >
+                  🚀 Configs Evolution API
+                </button>
+              </div>
 
-
-              <div className="space-y-4 animate-fadeIn">
-                <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/15 space-y-2">
-                  <p className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 font-mono">
-                    ⚡ AUTOMAÇÃO DIRETAMENTE INTEGRADA
-                  </p>
-                  <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                    O <strong>Zap Direto</strong> chama o seu script local <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">integracao.js</code> diretamente no backend Node do app para rodar o motor local (Baileys) de forma ágil, segura e 100% autônoma.
-                  </p>
-                </div>
+              {/* Sub-tab: DIRECT (Baileys) */}
+              {apiCredTab === "direto" && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/15 space-y-2">
+                    <p className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 font-mono">
+                      ⚡ AUTOMAÇÃO DIRETAMENTE INTEGRADA
+                    </p>
+                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                      O <strong>Zap Direto</strong> chama o seu script local <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">integracao.js</code> diretamente no backend Node do app para rodar o motor local (Baileys) de forma ágil, segura e 100% autônoma.
+                    </p>
+                  </div>
 
                   {/* BAiLEYS CONNECTION AND SCAN CARD */}
                   <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-4">
@@ -2301,8 +2580,228 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                     </div>
                   </div>
                 </div>
+              )}
 
-              </div>
+              {/* Sub-tab: INSTAGRAM */}
+              {apiCredTab === "instagram" && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-pink-950/20 border border-pink-500/20 p-4 rounded-xl space-y-2 animate-fadeIn">
+                    <h3 className="text-xs font-bold text-pink-400 font-mono block">📸 CONFIGURAÇÃO INSTAGRAM DIRECT GRAPH API</h3>
+                    <p className="text-[11px] text-slate-350 leading-relaxed">
+                      Responda comentários no seu feed com gatilhos de compras (ex: <strong>"QUERO"</strong>, <strong>"VALOR"</strong>) e envie mensagens Direct automaticamente enviando o cupom e catálogo 3D do seu checkout.
+                    </p>
+                  </div>
+
+                  {/* FORM FIELDS FOR INSTAGRAM CREDENTIALS */}
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">IG ACCESS TOKEN (TOKEN DE ACESSO META)</label>
+                        <input
+                          type="password"
+                          value={apiCredentials.instagram?.accessToken || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            instagram: { ...prev.instagram, accessToken: e.target.value }
+                          }))}
+                          placeholder="EAAX..."
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">INSTAGRAM BUSINESS ACCOUNT ID</label>
+                        <input
+                          type="text"
+                          value={apiCredentials.instagram?.businessAccountId || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            instagram: { ...prev.instagram, businessAccountId: e.target.value }
+                          }))}
+                          placeholder="178414..."
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* STEP-BY-STEP USER INSTRUCTIONS */}
+                  <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>📖</span> Tutorial de Integração do Instagram ("Como vamos fazer?")
+                    </h4>
+                    
+                    <div className="space-y-2.5 text-xs text-slate-400 leading-relaxed font-sans">
+                      <div className="flex gap-2">
+                        <span className="w-5 h-5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold flex items-center justify-center text-[10px] flex-shrink-0">1</span>
+                        <p>
+                          <strong>Instagram Profissional:</strong> mude sua conta do Instagram para Criador de Conteúdo ou Comercial e vincule-a a uma Página do Facebook criada no seu perfil de anúncios.
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <span className="w-5 h-5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold flex items-center justify-center text-[10px] flex-shrink-0">2</span>
+                        <p>
+                          <strong>Plataforma Meta for Developers:</strong> acesse <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" className="text-pink-400 hover:underline">developers.facebook.com</a>, registre-se, crie um App do Tipo "Outro" ou "Consumidor" e adicione o produto <strong>Instagram Graph API</strong>.
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <span className="w-5 h-5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-bold flex items-center justify-center text-[10px] flex-shrink-0">3</span>
+                        <p>
+                          <strong>Obter Credenciais:</strong> no menu Gerenciador de Negócios / Webhooks, copie o seu <strong>Instagram Business Account ID</strong> de 15 dígitos e obtenha o seu <strong>Access Token</strong> permanente com as permissões de mensagens ativadas. Cole essas duas chaves secretas acima e salve.
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2 border-t border-slate-850 pt-2 text-slate-300">
+                        <span className="w-5 h-5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold flex items-center justify-center text-[10px] flex-shrink-0">4</span>
+                        <div className="space-y-1">
+                          <p><strong>Configurar o Webhook na Meta:</strong> Na área de Webhooks do seu App Meta, preencha as seguintes configurações de destino:</p>
+                          
+                          <div className="space-y-1.5 mt-2 bg-slate-950 p-2 rounded-lg border border-slate-800 font-mono text-[10px] text-slate-300 select-all">
+                            <p><strong>Callback URL:</strong> {window.location.origin}/api/webhook/instagram</p>
+                            <p><strong>Verify Token:</strong> {apiCredentials.whatsapp?.verifyToken || "viralyze_token"}</p>
+                          </div>
+                          
+                          <p className="text-[10px] text-slate-450 mt-1 leading-normal">
+                            Assine os tópicos <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">comments</code> e/or <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">messages</code>. Agora toda interação real de comprador no feed ou inbox será capturada instantaneamente neste CRM!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab: META WHATSAPP CLOUD */}
+              {apiCredTab === "whatsapp" && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-cyan-950/20 border border-cyan-500/20 p-4 rounded-xl space-y-1 animate-fadeIn">
+                    <p className="text-xs font-bold text-cyan-400 font-mono">🧬 CONFIGURAÇÃO DA API OFICIAL DE NUVEM WHATSAPP</p>
+                    <p className="text-[11px] text-slate-350">
+                      Integre o webhook e chaves legítimas do WhatsApp Cloud API diretamente do Facebook Developers Dashboard.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">PHONE NUMBER ID</label>
+                        <input
+                          type="text"
+                          value={apiCredentials.whatsapp?.phoneId || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            whatsapp: { ...prev.whatsapp, phoneId: e.target.value }
+                          }))}
+                          placeholder="Phone Number ID oficial"
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">VERIFY TOKEN (PARA O WEBHOOK META)</label>
+                        <input
+                          type="text"
+                          value={apiCredentials.whatsapp?.verifyToken || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            whatsapp: { ...prev.whatsapp, verifyToken: e.target.value }
+                          }))}
+                          placeholder="viralyze_token"
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] text-slate-400 block font-mono">WHATSAPP ACCESS TOKEN PERMANENTE</label>
+                        <input
+                          type="password"
+                          value={apiCredentials.whatsapp?.accessToken || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            whatsapp: { ...prev.whatsapp, accessToken: e.target.value }
+                          }))}
+                          placeholder="EAAW..."
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-850 space-y-1 text-[11px] text-slate-400">
+                      <p className="font-bold text-slate-200">Parâmetros do Webhook Meta:</p>
+                      <p>Nas configurações de Webhook do WhatsApp no painel de desenvolvedores, use:</p>
+                      <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-850 font-mono text-[10px] text-cyan-400 mt-2 select-all">
+                        <p><strong>Callback URL:</strong> {window.location.origin}/api/webhook/whatsapp</p>
+                        <p><strong>Verify Token:</strong> {apiCredentials.whatsapp?.verifyToken || "viralyze_token"}</p>
+                      </div>
+                      <p className="text-[9.5px] text-slate-500 mt-1 leading-normal">
+                        Assine o campo <code className="text-cyan-400 font-mono bg-cyan-500/10 px-1 rounded">messages</code> para carregar mensagens reais.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab: EVOLUTION */}
+              {apiCredTab === "evolution" && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-blue-950/20 border border-blue-500/20 p-4 rounded-xl space-y-1 animate-fadeIn">
+                    <p className="text-xs font-bold text-blue-400 font-mono">🚀 CONFIGURAÇÃO DE EVOLUTION API</p>
+                    <p className="text-[11px] text-slate-350">
+                      Conecte instâncias externas e integre múltiplos números de envio com controle de filas de atendimentos em lote.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">EVOLUTION API URL</label>
+                        <input
+                          type="text"
+                          value={apiCredentials.evolution?.apiUrl || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            evolution: { ...prev.evolution, apiUrl: e.target.value }
+                          }))}
+                          placeholder="https://api.evolution.sua-agencia.com"
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-400 block font-mono">NOME DA INSTÂNCIA (INSTANCE NAME)</label>
+                        <input
+                          type="text"
+                          value={apiCredentials.evolution?.instance || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            evolution: { ...prev.evolution, instance: e.target.value }
+                          }))}
+                          placeholder="Ex: MinhaLoja3D"
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] text-slate-400 block font-mono">EVOLUTION API KEY (TOKEN GLOBAL)</label>
+                        <input
+                          type="password"
+                          value={apiCredentials.evolution?.apiKey || ""}
+                          onChange={(e) => setApiCredentials(prev => ({
+                            ...prev,
+                            evolution: { ...prev.evolution, apiKey: e.target.value }
+                          }))}
+                          placeholder="Digite o Token Global / API Key"
+                          className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
 
             {/* SAVE ALL VALUES AND PERSIST */}
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
