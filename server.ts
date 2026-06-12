@@ -4,6 +4,7 @@ import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { initBaileys, getWhatsAppStatus, disconnectWhatsApp, sendBaileysMessage } from "./whatsapp-baileys";
 
 dotenv.config();
 
@@ -325,9 +326,19 @@ async function sendEvolutionWhatsAppMessage(apiUrl: string, apiKey: string, inst
 
 // Helper function to send WhatsApp messages dynamically via local integracao.js
 async function sendDirectWhatsAppMessage(to: string, bodyText: string) {
+  // 1. Tentar enviar via Baileys real se estiver conectado
+  const wppStatus = await getWhatsAppStatus();
+  if (wppStatus.status === "connected") {
+    console.log(`[Zap Direto] Motor Baileys conectado! Enviando mensagem direta real para ${to}`);
+    await sendBaileysMessage(to, bodyText);
+    return { success: true, method: "baileys", target: to };
+  }
+
+  // 2. Se não estiver ativo, tentamos o fallback no arquivo customizado integracao.js
+  console.log(`[Zap Direto] Baileys desativado ou desconectado. Tentando fallback no integracao.js...`);
   const filePath = path.join(process.cwd(), "integracao.js");
   if (!fs.existsSync(filePath)) {
-    throw new Error("O arquivo 'integracao.js' de automação direta não foi encontrado na raiz do projeto.");
+    throw new Error("Sua sessão do WhatsApp local (Baileys) não está conectada. Por favor, escaneie o QR Code no painel ou verifique o arquivo 'integracao.js'.");
   }
 
   try {
@@ -351,7 +362,7 @@ async function sendDirectWhatsAppMessage(to: string, bodyText: string) {
     return { success: true, method: "integracao.js", target: formattedId };
   } catch (err: any) {
     console.error("Falha ao executar integracao.js:", err);
-    throw new Error(`Falha no motor de execução do seu script integracao.js: ${err.message}`);
+    throw new Error(`WhatsApp deslogado. Falha na tentativa de fallback via integracao.js: ${err.message}`);
   }
 }
 
@@ -766,6 +777,40 @@ app.post("/api/integracao-code", (req, res) => {
   }
 });
 
+// --- BAILEYS DIRECT API CHANNELS CONTROL ---
+
+app.get("/api/whatsapp/status", async (req, res) => {
+  const statusInfo = await getWhatsAppStatus();
+  res.json(statusInfo);
+});
+
+app.post("/api/whatsapp/connect", async (req, res) => {
+  try {
+    await initBaileys();
+    res.json({ success: true, message: "Baileys init triggered." });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/whatsapp/disconnect", async (req, res) => {
+  try {
+    await disconnectWhatsApp();
+    db.notifications.unshift({
+      id: "n" + Math.random().toString(36).substr(2, 4),
+      title: "Zap Desconectado 🔌",
+      message: "Sessão do WhatsApp Baileys foi encerra de forma bem sucedida no servidor.",
+      platform: "whatsapp",
+      type: "alert",
+      time: "Agora mesmo",
+      read: false
+    });
+    res.json({ success: true, message: "Baileys session disconnected.", notifications: db.notifications });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Meta Platform Webhook Verification GET: handles webhook handshake with Meta developers dashboard
 app.get("/api/webhook/whatsapp", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -913,6 +958,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Viralyze 3D] Rodando com sucesso na porta ${PORT}`);
+    // Boot Baileys WhatsApp local engine background
+    initBaileys().catch(err => {
+      console.error("[Baileys] Erro no auto-start do Baileys:", err);
+    });
   });
 }
 

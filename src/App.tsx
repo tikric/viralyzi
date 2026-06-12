@@ -119,6 +119,60 @@ export default function App() {
   const [isLoadingIntegracao, setIsLoadingIntegracao] = useState(false);
   const [isSavingIntegracao, setIsSavingIntegracao] = useState(false);
 
+  // Baileys status and controllers
+  const [baileysStatus, setBaileysStatus] = useState<"offline" | "connecting" | "qr" | "connected" | "error">("offline");
+  const [baileysQr, setBaileysQr] = useState<string | null>(null);
+  const [baileysError, setBaileysError] = useState<string | null>(null);
+  const [isDisconnectingBaileys, setIsDisconnectingBaileys] = useState(false);
+
+  // Fetch Baileys status and current QR code if available
+  const fetchBaileysStatus = async () => {
+    try {
+      const res = await fetch("/api/whatsapp/status");
+      if (res.ok) {
+        const data = await res.json();
+        setBaileysStatus(data.status);
+        setBaileysQr(data.qr);
+        setBaileysError(data.error);
+      }
+    } catch (err) {
+      console.error("Erro ao obter status do Baileys:", err);
+    }
+  };
+
+  // Triggers connect on Baileys
+  const connectBaileys = async () => {
+    try {
+      await fetch("/api/whatsapp/connect", { method: "POST" });
+      fetchBaileysStatus();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Triggers disconnect and clears auth files
+  const disconnectBaileys = async () => {
+    setIsDisconnectingBaileys(true);
+    try {
+      const res = await fetch("/api/whatsapp/disconnect", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.notifications) {
+          setNotifications(data.notifications);
+        }
+        pushClientToast(
+          "WhatsApp Desconectado 🔌",
+          "Todas as credenciais de sessão do Baileys foram limpadas do servidor."
+        );
+      }
+      fetchBaileysStatus();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDisconnectingBaileys(false);
+    }
+  };
+
   // New scheduler state
   const [newVideoTitle, setNewVideoTitle] = useState("");
   const [newVideoPlatform, setNewVideoPlatform] = useState<"tiktok" | "instagram" | "whatsapp">("tiktok");
@@ -214,6 +268,14 @@ export default function App() {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchBaileysStatus();
+
+    // Polling suave a cada 5 segundos para sincronizar o QR Code e status live do Baileys
+    const interval = setInterval(() => {
+      fetchBaileysStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Handler: Add new Channel/Account
@@ -1626,26 +1688,128 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                 </div>
               )}
 
-              {/* TAB 5: FUNIL DE LEADS & INTEGRATIONS */}
               {activeTab === "crm" && (
-                <div className="space-y-6 animate-fadeIn">
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left: CRM & Meta Real APIs configurations */}
-                    <div className="lg:col-span-1 glass-panel p-5 rounded-2xl h-fit space-y-5">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+                  {/* Left: WhatsApp Baileys Engine & CRM Configurations */}
+                  <div className="lg:col-span-1 glass-panel p-5 rounded-2xl h-fit space-y-5">
                       <div>
                         <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono text-emerald-400 flex items-center gap-1.5">
-                          <span>🔌</span> Integração & APIs Oficiais
+                          <span>🔌</span> WhatsApp Baileys & CRM Local
                         </h3>
                         <p className="text-[11px] text-slate-400 mt-1">
-                          Conecte suas credenciais reais da Meta de forma segura na nuvem para automatizar vendas por Instagram Direct e WhatsApp Cloud.
+                          Gerencie seu WhatsApp via conexão física (QR Code) e configure gatilhos automáticos para responder seus clientes.
                         </p>
                       </div>
 
                       <div className="space-y-4">
+                        {/* BAiLEYS CONNECTION AND SCAN CARD */}
+                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-4">
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-450 font-mono uppercase block tracking-wider">Conexão Física Local</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-white font-mono">Status:</span>
+                              {baileysStatus === "connected" ? (
+                                <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                                  🟢 CONECTADO
+                                </span>
+                              ) : baileysStatus === "connecting" ? (
+                                <span className="bg-amber-400/15 text-amber-400 border border-amber-400/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                                  🟡 CONECTANDO...
+                                </span>
+                              ) : baileysStatus === "qr" ? (
+                                <span className="bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                                  🔵 AGUARDANDO QR CODE
+                                </span>
+                              ) : (
+                                <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+                                  🔴 DESCONECTADO
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={fetchBaileysStatus}
+                              className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 text-[10px] rounded-lg font-mono border border-slate-800 cursor-pointer"
+                            >
+                              Atualizar 🔄
+                            </button>
+                            {baileysStatus === "offline" && (
+                              <button
+                                type="button"
+                                onClick={connectBaileys}
+                                className="px-2.5 py-1 bg-emerald-400 hover:bg-emerald-350 text-black text-[10px] font-bold rounded-lg font-mono cursor-pointer transition-colors"
+                              >
+                                Conectar Zap 🔌
+                              </button>
+                            )}
+                            {baileysStatus !== "offline" && (
+                              <button
+                                type="button"
+                                disabled={isDisconnectingBaileys}
+                                onClick={disconnectBaileys}
+                                className="px-2 py-1 bg-rose-550 hover:bg-rose-500 text-white text-[10px] font-bold rounded-lg font-mono disabled:opacity-50 cursor-pointer transition-colors"
+                              >
+                                {isDisconnectingBaileys ? "Saindo..." : "Desconectar 🚪"}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* QR Code display area */}
+                          {baileysStatus === "qr" && baileysQr && (
+                            <div className="flex flex-col items-center justify-center p-3 bg-slate-900/40 rounded-xl border border-blue-500/10 space-y-2.5 animate-fadeIn">
+                              <p className="text-[10px] text-blue-300 font-mono text-center leading-normal">
+                                Escaneie para conectar seu WhatsApp celular:
+                              </p>
+                              <div className="bg-white p-2.5 rounded-xl shadow-xl">
+                                <img src={baileysQr} alt="WhatsApp QR Code" className="w-36 h-36 block" referrerPolicy="no-referrer" />
+                              </div>
+                              <p className="text-[9px] text-slate-450 font-mono text-center">
+                                WhatsApp {`>`} Dispositivos Conectados {`>`} Conectar.
+                              </p>
+                            </div>
+                          )}
+
+                          {baileysStatus === "connected" && (
+                            <div className="bg-emerald-950/20 p-3 rounded-lg border border-emerald-500/20 flex gap-2 animate-fadeIn">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                                ✓
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[11px] font-bold text-white">Sessão Baileys Conectada!</p>
+                                <p className="text-[10px] text-slate-400 leading-normal">
+                                  Seu telefone está espelhado localmente para envio em massa.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {baileysStatus === "offline" && (
+                            <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-850 flex gap-2 text-slate-400">
+                              <div className="w-5 h-5 rounded-full bg-slate-800 text-slate-450 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                                ✕
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[11px] font-bold text-slate-300">WhatsApp Offline</p>
+                                <p className="text-[10px] text-slate-450 leading-normal">
+                                  Clique em "Conectar Zap" para iniciar e gerar o QR Code.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {baileysError && (
+                            <div className="bg-rose-950/20 p-2 rounded-lg border border-rose-500/15 text-rose-400 text-[9px] font-mono leading-relaxed break-all">
+                              <strong>ERRO:</strong> {baileysError}
+                            </div>
+                          )}
+                        </div>
+
                         {/* CRM Selection */}
                         <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 block font-mono">CRM / PLATAFORMA DE CHAT</label>
+                          <label className="text-[10px] text-slate-400 block font-mono uppercase tracking-wider">CRM / Plataforma de Mensagens</label>
                           <select
                             value={crmConfig.selectedCrm}
                             onChange={(e) => setCrmConfig(prev => ({ ...prev, selectedCrm: e.target.value }))}
@@ -1658,337 +1822,101 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                           </select>
                         </div>
 
-                        {/* COPYABLE REAL WEBHOOK LINK INDICATOR */}
-                        <div className="space-y-1">
+                        {/* Script Editor (integracao.js) */}
+                        <div className="space-y-1 border-t border-slate-850 pt-3">
                           <div className="flex justify-between items-center">
-                            <label className="text-[10px] text-slate-400 block font-mono uppercase">WEBHOOK DE SINCRONIZAÇÃO DA META</label>
-                            {copiedWebhookLink ? (
-                              <span className="text-[9px] text-emerald-400 font-bold font-mono">✓ COPIADO</span>
-                            ) : null}
+                            <label className="text-[10px] text-slate-400 block font-mono font-bold">EDITOR MOTOR (INTEGRACAO.JS)</label>
+                            {isLoadingIntegracao && <span className="text-[8px] text-amber-500 animate-pulse font-mono font-bold">Carregando...</span>}
                           </div>
-                          <div className="flex gap-1.5">
-                            <input
-                              type="text"
-                              readOnly
-                              value={typeof window !== "undefined" ? `${window.location.origin}/api/webhook/whatsapp` : "https://loja.viralyze/api/webhook/whatsapp"}
-                              className="flex-1 bg-slate-950 border border-slate-850 text-[11px] rounded-xl px-3 py-2 text-emerald-400 select-all font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const link = typeof window !== "undefined" ? `${window.location.origin}/api/webhook/whatsapp` : "";
-                                if (link) {
-                                  navigator.clipboard.writeText(link);
-                                  setCopiedWebhookLink(true);
-                                  setTimeout(() => setCopiedWebhookLink(false), 2000);
-                                }
-                              }}
-                              className="px-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-300 hover:text-white cursor-pointer self-stretch flex items-center justify-center"
-                              title="Copiar URL do Webhook Meta"
-                            >
-                              <Copy size={12} />
-                            </button>
-                          </div>
-                          <p className="text-[9px] text-slate-500 font-serif leading-tight">
-                            Cole essa URL e o token de verificação abaixo no Painel Meta Developer para receber eventos do WhatsApp em tempo real.
-                          </p>
+                          <textarea
+                            value={integracaoCode}
+                            onChange={(e) => setIntegracaoCode(e.target.value)}
+                            rows={8}
+                            className="w-full bg-slate-900 border border-slate-800 text-[10px] rounded-lg px-2 text-slate-200 font-mono focus:border-emerald-500/40 focus:outline-none leading-normal"
+                            placeholder="// Código javascript da integracao"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveIntegracaoCode}
+                            disabled={isSavingIntegracao}
+                            className="w-full py-1.5 bg-emerald-400 hover:bg-emerald-350 text-black text-[10px] font-bold rounded-lg cursor-pointer transition-colors font-mono uppercase"
+                          >
+                            {isSavingIntegracao ? "Salvando..." : "Salvar Script do Motor 💾"}
+                          </button>
                         </div>
 
-                        {/* TABULAR API CREDENTIALS FORM */}
-                        <div className="bg-slate-950/40 border border-slate-850 p-3.5 rounded-xl space-y-3.5">
-                          <div className="flex justify-between items-center border-b border-slate-900 pb-2">
-                            <span className="text-[10px] text-slate-200 block font-mono font-bold uppercase tracking-wider">🔒 Credenciais Reais</span>
-                            <div className="flex gap-1 flex-wrap justify-end">
-                              {(["direto", "whatsapp", "evolution", "instagram", "facebook"] as const).map(tab => (
-                                <button
-                                  key={tab}
-                                  type="button"
-                                  onClick={() => setApiCredTab(tab)}
-                                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold font-mono cursor-pointer uppercase ${
-                                    apiCredTab === tab 
-                                      ? "bg-slate-800 border border-emerald-500/20 text-emerald-400" 
-                                      : "text-slate-500 hover:text-slate-350"
-                                  }`}
-                                >
-                                  {tab === "direto" ? "⚡ Zap Direto" : tab === "whatsapp" ? "Zap Meta" : tab === "evolution" ? "Zap Evo" : tab === "instagram" ? "Insta" : "FB"}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                        <form onSubmit={handleSaveApiCredentials} className="space-y-3">
-                          {apiCredTab === "direto" && (
-                            <div className="space-y-2.5 animate-fadeIn">
-                              <div className="bg-emerald-950/20 border border-emerald-500/10 p-2.5 rounded-lg space-y-1.5">
-                                <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 font-mono">
-                                  🔌 MOTOR ZAP DIRETO ATIVO (INTEGRACAO.JS)
-                                </p>
-                                <p className="text-[9px] text-slate-400 leading-normal">
-                                  Seu WhatsApp rodará sem intermediários. Personalize e altere o script local <code className="text-emerald-300 font-mono">integracao.js</code> diretamente por aqui!
-                                </p>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex justify-between items-center">
-                                  <label className="text-[9px] text-slate-450 block font-mono font-bold tracking-wider">CÓDIGO FONTE DO MOTOR</label>
-                                  {isLoadingIntegracao && <span className="text-[8px] text-amber-500 animate-pulse font-mono font-bold">Carregando...</span>}
-                                </div>
-                                <textarea
-                                  value={integracaoCode}
-                                  onChange={(e) => setIntegracaoCode(e.target.value)}
-                                  rows={11}
-                                  className="w-full bg-slate-900 border border-slate-800 text-[10px] rounded-lg px-2.5 py-1.5 text-slate-200 font-mono focus:border-emerald-500/40 focus:outline-none"
-                                  placeholder="// Cole aqui seu javascript da integracao"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={handleSaveIntegracaoCode}
-                                disabled={isSavingIntegracao}
-                                className="w-full py-2 bg-emerald-400 hover:bg-emerald-350 text-black text-[10px] font-bold rounded-lg cursor-pointer transition-colors font-mono uppercase"
-                              >
-                                {isSavingIntegracao ? "Gravando Script..." : "Salvar Código do Motor 💾"}
-                              </button>
-                            </div>
-                          )}
-
-                          {apiCredTab === "whatsapp" && (
-                              <div className="space-y-2.5">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">WHATSAPP PHONE NUMBER ID</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: 109843719875"
-                                    value={apiCredentials.whatsapp.phoneId}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      whatsapp: { ...prev.whatsapp, phoneId: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">TOKEN DE ACESSO PERMANENTE (BEARER)</label>
-                                  <input
-                                    type="password"
-                                    placeholder="EAAW..."
-                                    value={apiCredentials.whatsapp.accessToken}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      whatsapp: { ...prev.whatsapp, accessToken: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">WHATSAPP VERIFY TOKEN (WEBHOOK)</label>
-                                  <input
-                                    type="text"
-                                    placeholder="viralyze_token"
-                                    value={apiCredentials.whatsapp.verifyToken}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      whatsapp: { ...prev.whatsapp, verifyToken: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            {apiCredTab === "evolution" && (
-                              <div className="space-y-2.5">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">EVOLUTION API BASE URL</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: https://evo.suaempresa.com"
-                                    value={apiCredentials.evolution?.apiUrl || ""}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), apiUrl: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">GLOBAL API KEY (APIKEY)</label>
-                                  <input
-                                    type="password"
-                                    placeholder="Senha ou token de segurança"
-                                    value={apiCredentials.evolution?.apiKey || ""}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), apiKey: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">INSTÂNCIA (INSTANCE NAME)</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: minha_loja_3d"
-                                    value={apiCredentials.evolution?.instance || ""}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), instance: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            {apiCredTab === "instagram" && (
-                              <div className="space-y-2.5">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">INSTAGRAM ACCOUNT ID</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: 17841400738201"
-                                    value={apiCredentials.instagram.businessAccountId}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      instagram: { ...prev.instagram, businessAccountId: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">PAGE ACCESS TOKEN (INSTAGRAM DIRETOS)</label>
-                                  <input
-                                    type="password"
-                                    placeholder="EAAW..."
-                                    value={apiCredentials.instagram.accessToken}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      instagram: { ...prev.instagram, accessToken: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            {apiCredTab === "facebook" && (
-                              <div className="space-y-2.5">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">FACEBOOK PAGE ID</label>
-                                  <input
-                                    type="text"
-                                    placeholder="Ex: 104810992381"
-                                    value={apiCredentials.facebook.pageId}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      facebook: { ...prev.facebook, pageId: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] text-slate-400 block font-mono font-semibold">FACEBOOK PAGE ACCESS TOKEN</label>
-                                  <input
-                                    type="password"
-                                    placeholder="EAAW..."
-                                    value={apiCredentials.facebook.accessToken}
-                                    onChange={(e) => setApiCredentials(prev => ({
-                                      ...prev,
-                                      facebook: { ...prev.facebook, accessToken: e.target.value }
-                                    }))}
-                                    className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-250 font-mono"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            <button
-                              type="submit"
-                              className="mt-2 w-full py-2 bg-slate-900 hover:bg-slate-850 text-emerald-400 hover:text-emerald-350 border border-emerald-500/25 text-[11px] font-bold rounded-lg cursor-pointer"
-                            >
-                              Salvar Credenciais da API Real
-                            </button>
-                          </form>
-                        </div>
-
-                        {/* INTERACTIVE WhatsApp CONNECTION CHECKER / SENDER */}
-                        <div className="bg-emerald-950/20 border border-emerald-500/10 p-3.5 rounded-xl space-y-2">
-                          <h4 className="text-[10px] text-emerald-400 font-bold uppercase font-mono flex items-center gap-1">
-                            <span>⚡</span> Testar Disparo Zap Real
-                          </h4>
-                          <p className="text-[9px] text-slate-400 font-serif leading-tight">
-                            Digite um telefone celular com DDI e DDD para enviar uma mensagem real de vendas usando sua API Cloud cadastrada.
-                          </p>
-
-                          <div className="flex gap-2.5">
+                        {/* Test message trigger */}
+                        <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2">
+                          <h4 className="text-[10px] text-emerald-400 font-bold uppercase font-mono">Testar Disparo no Celular</h4>
+                          <div className="flex gap-2">
                             <input
                               type="text"
-                              placeholder="Ex: +5511999998888"
+                              placeholder="DDI + DDD + Número (Ex: 5511999998888)"
                               value={testPhoneInput}
                               onChange={(e) => setTestPhoneInput(e.target.value)}
-                              className="flex-1 bg-slate-950 border border-slate-850 text-xs rounded-xl px-2.5 py-1.5 text-slate-100 font-mono"
+                              className="flex-1 bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1.5 text-slate-100 font-mono text-[11px]"
                             />
                             <button
                               type="button"
                               onClick={handleSendLiveWhatsAppTest}
                               disabled={isSendingTestMessage}
-                              className="px-3 bg-emerald-400 hover:bg-emerald-350 text-black text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 font-mono"
+                              className="px-2.5 bg-emerald-450 hover:bg-emerald-400 text-black text-[11px] font-bold rounded-lg cursor-pointer"
                             >
                               {isSendingTestMessage ? "..." : "Enviar"}
                             </button>
                           </div>
                         </div>
 
-                        {/* Auto DM catalog trigger configurations */}
-                        <div className="space-y-2">
+                        {/* CRM Auto DM catalog trigger configurations */}
+                        <div className="pt-2 border-t border-slate-850 space-y-3">
                           <div className="flex justify-between items-center text-xs text-slate-300">
                             <span>Disparo Automático de Catálogo</span>
                             <input
                               type="checkbox"
                               checked={crmConfig.autoDm}
                               onChange={(e) => setCrmConfig(prev => ({ ...prev, autoDm: e.target.checked }))}
-                              className="w-4 h-4 text-emerald-500 bg-slate-900 border-slate-800 rounded focus:ring-emerald-400"
+                              className="w-4 h-4 text-emerald-500 bg-slate-900 border-slate-800 rounded focus:ring-emerald-400 cursor-pointer"
                             />
                           </div>
-                        </div>
 
-                        {/* Keyword setup */}
-                        <div className="space-y-2 border-t border-slate-800 pt-3">
-                          <label className="text-xs text-slate-350 block">Palavras-Chave de Ativação</label>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {crmConfig.triggerKeywords.map((word, idx) => (
-                              <span key={idx} className="flex items-center gap-1 text-[10px] bg-slate-900 border border-slate-800 text-slate-200 px-2 py-0.5 rounded-lg">
-                                {word}
-                                <button
-                                  type="button"
-                                  onClick={() => setCrmConfig(prev => ({ ...prev, triggerKeywords: prev.triggerKeywords.filter(w => w !== word) }))}
-                                  className="text-slate-500 hover:text-rose-400 ml-1 font-bold font-mono text-[9px]"
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            ))}
-                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[11px] text-slate-350 block">Palavras-Chave de Ativação</label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {crmConfig.triggerKeywords.map((word, idx) => (
+                                <span key={idx} className="flex items-center gap-1 text-[10px] bg-slate-900 border border-slate-800 text-slate-200 px-2 py-0.5 rounded-lg">
+                                  {word}
+                                  <button
+                                    type="button"
+                                    onClick={() => setCrmConfig(prev => ({ ...prev, triggerKeywords: prev.triggerKeywords.filter(w => w !== word) }))}
+                                    className="text-slate-500 hover:text-rose-400 ml-1 font-bold font-mono text-[9px]"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
 
-                          <div className="flex gap-2 mt-2">
-                            <input
-                              type="text"
-                              placeholder="Ex: QUERO, CUPOM"
-                              value={newTriggerWord}
-                              onChange={(e) => setNewTriggerWord(e.target.value.toUpperCase())}
-                              className="flex-1 bg-slate-900 border border-slate-800 text-xs rounded-xl px-2.5 py-1 text-slate-100"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (newTriggerWord && !crmConfig.triggerKeywords.includes(newTriggerWord)) {
-                                  setCrmConfig(prev => ({ ...prev, triggerKeywords: [...prev.triggerKeywords, newTriggerWord] }));
-                                  setNewTriggerWord("");
-                                }
-                              }}
-                              className="px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-xl cursor-pointer"
-                            >
-                              Adicionar
-                            </button>
+                            <div className="flex gap-2 mt-2">
+                              <input
+                                type="text"
+                                placeholder="Adicionar (Ex: QUERO)"
+                                value={newTriggerWord}
+                                onChange={(e) => setNewTriggerWord(e.target.value.toUpperCase())}
+                                className="flex-1 bg-slate-900 border border-slate-800 text-xs rounded-lg px-2 py-1 text-slate-100"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (newTriggerWord && !crmConfig.triggerKeywords.includes(newTriggerWord)) {
+                                    setCrmConfig(prev => ({ ...prev, triggerKeywords: [...prev.triggerKeywords, newTriggerWord] }));
+                                    setNewTriggerWord("");
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-emerald-400 border border-slate-750 text-xs font-semibold rounded-lg cursor-pointer"
+                              >
+                                + Add
+                              </button>
+                            </div>
                           </div>
                         </div>
 
@@ -2037,9 +1965,7 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                       </div>
                     </div>
                   </div>
-
-                </div>
-              )}
+                )}
             </>
           )}
         </main>
@@ -2149,55 +2075,138 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
 
             <div className="flex-1 overflow-y-auto pr-1 space-y-5">
               
-              {/* Active WhatsApp Engine selector card */}
+              {/* Active WhatsApp Engine is Zap Direto (Baileys) */}
               <div className="bg-slate-950/40 p-3.5 border border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3.5">
                 <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-white uppercase tracking-wide font-mono flex items-center gap-1.5">
-                    🟢 Motor WhatsApp Ativo para Disparos
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide font-mono flex items-center gap-1.5">
+                    ⚡ Motor WhatsApp Ativo: Zap Direto (Baileys)
                   </span>
-                  <p className="text-[10px] text-slate-400">
-                    Defina por qual API ou script local o sistema enviará suas campanhas e directs de WhatsApp.
+                  <p className="text-[10px] text-slate-450 leading-relaxed">
+                    Sua automação com o WhatsApp local está ativa por padrão. Não há necessidade de intermediários ou de pagar taxas adicionais.
                   </p>
                 </div>
-                <select
-                  value={apiCredentials.whatsappEngine || "direct"}
-                  onChange={(e) => setApiCredentials(prev => ({ ...prev, whatsappEngine: e.target.value }))}
-                  className="bg-slate-900 border border-slate-750 text-xs rounded-lg px-3 py-2 text-emerald-300 focus:outline-none focus:border-emerald-500 font-bold font-mono min-w-[200px]"
-                >
-                  <option value="direct">⚡ Zap Direto (integracao.js)</option>
-                  <option value="evolution">🔌 Evolution API (QR Web)</option>
-                  <option value="whatsapp">💬 WhatsApp Cloud (Meta)</option>
-                </select>
+                <div className="text-[10px] bg-slate-900 text-emerald-400 font-mono font-bold px-3 py-1.5 rounded-lg border border-slate-800 select-none">
+                  🟢 CONEXÃO REAL ATIVA
+                </div>
               </div>
 
-              {/* TAB SELECTOR FOR DETAILS */}
-              <div className="flex border-b border-slate-800 pb-px gap-2 flex-wrap">
-                {(["direto", "whatsapp", "evolution", "instagram", "facebook"] as const).map(tab => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setApiCredTab(tab)}
-                    className={`text-xs px-3.5 py-2 border-b-2 font-semibold transition-colors duration-200 cursor-pointer ${
-                      apiCredTab === tab 
-                        ? "border-emerald-400 text-white bg-slate-800/40 rounded-t-lg" 
-                        : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {tab === "direto" ? "⚡ Zap Direto (Local)" : tab === "whatsapp" ? "🟢 WhatsApp Cloud (Meta)" : tab === "evolution" ? "🔌 Evolution API (Alternativo)" : tab === "instagram" ? "📸 Instagram Graph API" : "🔵 Facebook Graph & CRM"}
-                  </button>
-                ))}
-              </div>
 
-              {/* Form entries for selected tab */}
-              {apiCredTab === "direto" && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/15 space-y-2">
-                    <p className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 font-mono">
-                      ⚡ AUTOMACÃO DIRETAMENTE INTEGRADA (ZAP DIRETO LOCAL)
-                    </p>
-                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                      Diferente da API do Evolution ou Meta, o <strong>Zap Direto</strong> chama o seu script local <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">integracao.js</code> diretamente no backend Node do app! Perfeito para rodar seus próprios bots (como whatsapp-web.js, baileys, venom, etc.) de forma rápida, segura e 100% gratuita.
-                    </p>
+
+              <div className="space-y-4 animate-fadeIn">
+                <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/15 space-y-2">
+                  <p className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 font-mono">
+                    ⚡ AUTOMAÇÃO DIRETAMENTE INTEGRADA
+                  </p>
+                  <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                    O <strong>Zap Direto</strong> chama o seu script local <code className="text-emerald-300 font-mono bg-slate-950 px-1 py-0.5 rounded">integracao.js</code> diretamente no backend Node do app para rodar o motor local (Baileys) de forma ágil, segura e 100% autônoma.
+                  </p>
+                </div>
+
+                  {/* BAiLEYS CONNECTION AND SCAN CARD */}
+                  <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-450 font-mono uppercase block tracking-wider">Sincronização Física via Baileys</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white font-mono uppercase">Status do Scanner:</span>
+                          {baileysStatus === "connected" ? (
+                            <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                              🟢 CONECTADO
+                            </span>
+                          ) : baileysStatus === "connecting" ? (
+                            <span className="bg-amber-400/15 text-amber-400 border border-amber-400/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                              🟡 CONECTANDO...
+                            </span>
+                          ) : baileysStatus === "qr" ? (
+                            <span className="bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono animate-pulse">
+                              🔵 AGUARDANDO LEITURA DO QR CODE
+                            </span>
+                          ) : (
+                            <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+                              🔴 DESCONECTADO
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={fetchBaileysStatus}
+                          className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-850 text-slate-300 text-[10px] rounded-lg font-mono border border-slate-800 cursor-pointer"
+                        >
+                          Sincronizar Stat 🔄
+                        </button>
+                        {baileysStatus === "offline" && (
+                          <button
+                            type="button"
+                            onClick={connectBaileys}
+                            className="px-2.5 py-1.5 bg-emerald-400 hover:bg-emerald-350 text-black text-[10px] font-bold rounded-lg font-mono cursor-pointer transition-colors"
+                          >
+                            Conectar Zap 🔌
+                          </button>
+                        )}
+                        {baileysStatus !== "offline" && (
+                          <button
+                            type="button"
+                            disabled={isDisconnectingBaileys}
+                            onClick={disconnectBaileys}
+                            className="px-2.5 py-1.5 bg-rose-550 hover:bg-rose-500 text-white text-[10px] font-bold rounded-lg font-mono disabled:opacity-50 cursor-pointer transition-colors"
+                          >
+                            {isDisconnectingBaileys ? "Saindo..." : "Desconectar Zap 🚪"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* QR Code display area */}
+                    {baileysStatus === "qr" && baileysQr && (
+                      <div className="flex flex-col items-center justify-center p-5 bg-slate-900/40 rounded-xl border border-blue-500/10 space-y-3.5 animate-fadeIn">
+                        <p className="text-[10.5px] text-blue-300 font-mono text-center max-w-sm leading-normal">
+                          Aproxime a câmera do seu celular com o WhatsApp do QR Code abaixo para sincronizar seu dispositivo:
+                        </p>
+                        <div className="bg-white p-3.5 rounded-2xl shadow-xl border border-white">
+                          <img src={baileysQr} alt="WhatsApp QR Code" className="w-44 h-44 block" referrerPolicy="no-referrer" />
+                        </div>
+                        <p className="text-[9.5px] text-slate-450 font-mono text-center leading-normal">
+                          Abra o WhatsApp {`>`} Configurações {`>`} Dispositivos Conectados {`>`} Conectar um dispositivo.
+                        </p>
+                      </div>
+                    )}
+
+                    {baileysStatus === "connected" && (
+                      <div className="bg-emerald-950/20 p-4 rounded-xl border border-emerald-500/20 flex gap-3.5 animate-fadeIn">
+                        <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          ✓
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-white">Excelente! Conexão ativa no servidor.</p>
+                          <p className="text-[10px] text-slate-400 leading-relaxed font-sans">
+                            Seu número está com o fluxo Baileys conectado de forma offline-first nacional. Mensagens automatizadas de disparo, CRM integrativo e alertas diários agora enviarão de forma 100% autônoma e imediata.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {baileysStatus === "offline" && (
+                      <div className="bg-slate-900/20 p-4 rounded-xl border border-slate-850 flex gap-3.5 select-none text-slate-400">
+                        <div className="w-9 h-9 rounded-full bg-slate-800 text-slate-450 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          ✕
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-slate-300">WhatsApp Baileys Adormecido</p>
+                          <p className="text-[10px] text-slate-450 leading-relaxed font-sans">
+                            Clique no botão "Conectar Zap" à direita para ativar a inicialização rápida do Baileys local, gerar seu código QR de autenticação e espelhar o seu telefone celular Maker de disparos.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {baileysError && (
+                      <div className="bg-rose-950/20 p-3 rounded-lg border border-rose-500/15 text-rose-400 text-[10px] font-mono leading-relaxed break-all">
+                        <strong>ERRO DETECTADO:</strong> {baileysError}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -2249,7 +2258,7 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                       <h4 className="text-[11px] text-emerald-400 font-bold uppercase font-mono">Disparar Mensagem de Ensaio (Zap Direto)</h4>
                     </div>
                     <p className="text-[10px] text-slate-450 leading-snug">
-                      Envie uma mensagem de teste rodando o seu arquivo <code className="text-emerald-300 font-mono">integracao.js</code> agora mesmo.
+                      Envie uma mensagem de teste real utilizando o motor de conexão ativa (Baileys) ou seu arquivo de script <code className="text-emerald-300 font-mono">integracao.js</code> agora mesmo.
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -2270,355 +2279,8 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                     </div>
                   </div>
                 </div>
-              )}
 
-              {apiCredTab === "whatsapp" && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">WHATSAPP PHONE NUMBER ID</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 109843719875"
-                        value={apiCredentials.whatsapp.phoneId}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          whatsapp: { ...prev.whatsapp, phoneId: e.target.value }
-                        }))}
-                        className="w-full bg-slate-950 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">WHATSAPP VERIFY TOKEN (WEBHOOK)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: viralyze_token"
-                        value={apiCredentials.whatsapp.verifyToken}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          whatsapp: { ...prev.whatsapp, verifyToken: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">TOKEN DE ACESSO INDEFINIDO DA CLOUD (BEARER)</label>
-                    <input
-                      type="password"
-                      placeholder="Cole o Token de Acesso da Meta que inicia com EAAW..."
-                      value={apiCredentials.whatsapp.accessToken}
-                      onChange={(e) => setApiCredentials(prev => ({
-                        ...prev,
-                        whatsapp: { ...prev.whatsapp, accessToken: e.target.value }
-                      }))}
-                      className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                    />
-                  </div>
-
-                  <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850/50 space-y-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase tracking-wider">Copiar Webhook para o Meta Developers</span>
-                      {copiedWebhookLink && (
-                        <span className="text-[10px] text-emerald-400 font-bold font-mono">✓ COPIADO</span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={typeof window !== "undefined" ? `${window.location.origin}/api/webhook/whatsapp` : "https://loja.viralyze/api/webhook/whatsapp"}
-                        className="flex-1 bg-slate-900 border border-slate-800 text-[11px] rounded-xl px-3 py-1.5 text-emerald-300 font-mono focus:outline-none select-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const link = typeof window !== "undefined" ? `${window.location.origin}/api/webhook/whatsapp` : "";
-                          if (link) {
-                            navigator.clipboard.writeText(link);
-                            setCopiedWebhookLink(true);
-                            setTimeout(() => setCopiedWebhookLink(false), 2000);
-                          }
-                        }}
-                        className="px-3 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 rounded-xl flex items-center justify-center cursor-pointer text-xs"
-                      >
-                        <Copy size={12} />
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
-                      Cole essa URL e o Token acima no campo Webhooks do produto "WhatsApp" no painel da Meta Developers para assinar mensagens e capturar comentários em tempo real.
-                    </p>
-                  </div>
-
-                  {/* Sandbox WhatsApp Quick Testing */}
-                  <div className="bg-emerald-950/20 border border-emerald-500/10 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-400 text-sm">⚡</span>
-                      <h4 className="text-[11px] text-emerald-400 font-bold uppercase font-mono">Disparar Mensagem de Ensaio</h4>
-                    </div>
-                    <p className="text-[10px] text-slate-400 leading-snug">
-                      Envie uma mensagem instantânea usando os dados oficiais informados para validar o funcionamento da conta profissional.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Ex: +5511999998888"
-                        value={testPhoneInput}
-                        onChange={(e) => setTestPhoneInput(e.target.value)}
-                        className="flex-1 bg-slate-950 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSendLiveWhatsAppTest}
-                        disabled={isSendingTestMessage}
-                        className="px-4 py-2 bg-emerald-400 hover:bg-emerald-350 text-black text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 font-mono text-center"
-                      >
-                        {isSendingTestMessage ? "..." : "Enviar agora"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {apiCredTab === "evolution" && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/40">
-                    <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                      🔌 <strong className="text-emerald-400">Evolution API</strong> é um sistema alternativo Open Source que emula o WhatsApp Web em seu próprio servidor VPS. Ideal para automatizar envios sem precisar de contas verificadas da Meta Empresarial e sem precisar ter que desinstalar o aplicativo WhatsApp Business do celular.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">EVOLUTION API BASE URL</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: https://api-whats.suaempresa.com.br"
-                        value={apiCredentials.evolution?.apiUrl || ""}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), apiUrl: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                      <span className="text-[9px] text-slate-500 block">Endereço HTTP do seu servidor Evolution API.</span>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">INSTÂNCIA (INSTANCE NAME)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: loja_3d_shopper"
-                        value={apiCredentials.evolution?.instance || ""}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), instance: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                      <span className="text-[9px] text-slate-500 block">Nome do perfil criado para ler o QR Code no Evolution.</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">GLOBAL SECURITY APIKEY (CHAVE API)</label>
-                    <input
-                      type="password"
-                      placeholder="Cole a chave apikey cadastrada no seu servidor Evolution"
-                      value={apiCredentials.evolution?.apiKey || ""}
-                      onChange={(e) => setApiCredentials(prev => ({
-                        ...prev,
-                        evolution: { ...(prev.evolution || { apiUrl: "", apiKey: "", instance: "" }), apiKey: e.target.value }
-                      }))}
-                      className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                    />
-                    <span className="text-[9px] text-slate-500 block">Código secreto usado para autenticar as chamadas da sua API Evolution.</span>
-                  </div>
-
-                  {/* Sandbox WhatsApp Quick Testing */}
-                  <div className="bg-emerald-950/20 border border-emerald-500/10 p-4 rounded-xl space-y-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-400 text-sm">⚡</span>
-                      <h4 className="text-[11px] text-emerald-400 font-bold uppercase font-mono">Disparar Mensagem de Ensaio (Evolution)</h4>
-                    </div>
-                    <p className="text-[10px] text-slate-400 leading-snug">
-                      Envie uma mensagem instantânea usando os dados informados acima para testar o envio com sua instância Evolution ativa.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Ex: +5511999998888"
-                        value={testPhoneInput}
-                        onChange={(e) => setTestPhoneInput(e.target.value)}
-                        className="flex-1 bg-slate-950 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSendLiveWhatsAppTest}
-                        disabled={isSendingTestMessage}
-                        className="px-4 py-2 bg-emerald-400 hover:bg-emerald-350 text-black text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 font-mono text-center"
-                      >
-                        {isSendingTestMessage ? "..." : "Enviar agora"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {apiCredTab === "instagram" && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">INSTAGRAM BUSINESS ACCOUNT ID</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 17841400738201"
-                        value={apiCredentials.instagram.businessAccountId}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          instagram: { ...prev.instagram, businessAccountId: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">PAGE ACCESS TOKEN (PÁGINA INTEGRADA)</label>
-                      <input
-                        type="password"
-                        placeholder="EAAW..."
-                        value={apiCredentials.instagram.accessToken}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          instagram: { ...prev.instagram, accessToken: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                  </div>
-                  <div className="p-3 bg-slate-950/40 border border-slate-850 rounded-xl space-y-1.5 text-xs text-slate-400">
-                    <p className="font-bold text-slate-300 flex items-center gap-1">
-                      <span>📌</span> Como conectar o Instagram Direct:
-                    </p>
-                    <ul className="list-disc pl-5 space-y-1 text-[11px] text-slate-450 leading-normal">
-                      <li>Converta sua conta pessoal do Instagram para Profissional (Criador de conteúdo ou Comercial).</li>
-                      <li>Vincule sua conta do Instagram a uma Fanpage profissional do Facebook.</li>
-                      <li>Habilite as opções de "Permitir acesso a mensagens no direct" nas configurações do Instagram.</li>
-                      <li>Gere o Token com escopo <code className="text-emerald-400 font-mono text-[10px]">instagram_manage_comments</code> e <code className="text-emerald-400 font-mono text-[10px]">instagram_manage_messages</code>.</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {apiCredTab === "facebook" && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">FACEBOOK PAGE ID (FANPAGE)</label>
-                      <input
-                        type="text"
-                        placeholder="Ex: 104810992381"
-                        value={apiCredentials.facebook.pageId}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          facebook: { ...prev.facebook, pageId: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-450 block font-mono font-bold tracking-wider">PAGE ACCESS TOKEN (PÁGINA DO FACEBOOK)</label>
-                      <input
-                        type="password"
-                        placeholder="EAAW..."
-                        value={apiCredentials.facebook.accessToken}
-                        onChange={(e) => setApiCredentials(prev => ({
-                          ...prev,
-                          facebook: { ...prev.facebook, accessToken: e.target.value }
-                        }))}
-                        className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 font-mono focus:border-emerald-500/50"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-800 pt-3.5 space-y-3.5">
-                    <span className="text-[10px] text-slate-300 block font-mono font-bold uppercase tracking-wider">🤖 Integração e Fluxo do CRM</span>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 block font-mono">CRM / CANAL DE TRATAMENTO DE LEADS</label>
-                        <select
-                          value={crmConfig.selectedCrm}
-                          onChange={(e) => setCrmConfig(prev => ({ ...prev, selectedCrm: e.target.value }))}
-                          className="w-full bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500/50"
-                        >
-                          <option>WhatsApp Direto (Link da Bio/Direct)</option>
-                          <option>RD Station (Integração Oficial)</option>
-                          <option>ActiveCampaign</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1 flex items-end">
-                        <div className="w-full flex justify-between items-center bg-slate-955 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-300">
-                          <span>Auto-DM de Catálogos</span>
-                          <input
-                            type="checkbox"
-                            checked={crmConfig.autoDm}
-                            onChange={(e) => setCrmConfig(prev => ({ ...prev, autoDm: e.target.checked }))}
-                            className="w-4 h-4 text-emerald-500 bg-slate-900 border-slate-800 rounded focus:ring-emerald-400 cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-slate-850">
-                      <label className="text-xs text-slate-300 block font-bold font-display">Gatilhos de Comentários / Direct</label>
-                      <p className="text-[10px] text-slate-400 leading-relaxed">
-                        Sempre que um usuário comentar palavras parecidas com estas nas postagens, o sistema capta o contato e envia o respectivo link do catálogo.
-                      </p>
-                      
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {crmConfig.triggerKeywords.map((word, idx) => (
-                          <span key={idx} className="flex items-center gap-1 text-[10px] bg-slate-955 border border-slate-800 text-slate-100 px-2.5 py-1 rounded-xl">
-                            {word}
-                            <button
-                              type="button"
-                              onClick={() => setCrmConfig(prev => ({ ...prev, triggerKeywords: prev.triggerKeywords.filter(w => w !== word) }))}
-                              className="text-xs text-rose-500 hover:text-rose-450 ml-1 font-bold cursor-pointer"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="flex gap-2 pt-1">
-                        <input
-                          type="text"
-                          placeholder="Nova palavra (Ex: DETALHES)"
-                          value={newTriggerWord}
-                          onChange={(e) => setNewTriggerWord(e.target.value.toUpperCase())}
-                          className="flex-1 bg-slate-955 border border-slate-800 text-xs rounded-xl px-3 py-1.5 text-slate-100 font-mono focus:outline-none focus:border-emerald-500/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (newTriggerWord && !crmConfig.triggerKeywords.includes(newTriggerWord)) {
-                              setCrmConfig(prev => ({ ...prev, triggerKeywords: [...prev.triggerKeywords, newTriggerWord] }));
-                              setNewTriggerWord("");
-                            }
-                          }}
-                          className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-xl cursor-pointer"
-                        >
-                          + Adicionar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
+              </div>
 
             {/* SAVE ALL VALUES AND PERSIST */}
             <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
