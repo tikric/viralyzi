@@ -994,10 +994,33 @@ app.get("/api/webhook/whatsapp", (req, res) => {
   if (mode && token) {
     if (mode === "subscribe" && (token === savedVerifyToken || token === "viralyze_token" || token === "viralyze")) {
       console.log("[Meta Webhook] Verificado com sucesso!");
+      
+      // Notify the user in real-time
+      db.notifications.unshift({
+        id: "webhook-whatsapp-ok-" + Math.random().toString(36).substr(2, 4),
+        title: "Webhook WhatsApp Verificado! ✅",
+        message: `A Meta se conectou com sucesso ao seu Webhook! Token recebido: "${token}" coincidiu e foi aceito pelo servidor.`,
+        platform: "whatsapp",
+        type: "success",
+        time: "Agora mesmo",
+        read: false
+      });
+
       res.setHeader("Content-Type", "text/plain");
-      return res.status(200).send(challenge);
+      return res.status(200).send(String(challenge));
     } else {
       console.log("[Meta Webhook] Erro na verificação: token incorreto");
+      
+      db.notifications.unshift({
+        id: "webhook-whatsapp-err-" + Math.random().toString(36).substr(2, 4),
+        title: "Erro no Webhook WhatsApp ⚠️",
+        message: `Tentativa de conexão da Meta recusada! O token enviado pela Meta foi "${token}", mas o servidor esperava "${savedVerifyToken}".`,
+        platform: "whatsapp",
+        type: "alert",
+        time: "Agora mesmo",
+        read: false
+      });
+
       return res.sendStatus(403);
     }
   }
@@ -1018,10 +1041,33 @@ app.get("/api/webhook/instagram", (req, res) => {
   if (mode && token) {
     if (mode === "subscribe" && (token === savedVerifyToken || token === "viralyze_token" || token === "viralyze")) {
       console.log("[Meta Instagram Webhook] Verificado com sucesso!");
+      
+      // Notify the user in real-time
+      db.notifications.unshift({
+        id: "webhook-instagram-ok-" + Math.random().toString(36).substr(2, 4),
+        title: "Webhook Instagram Conectado! ✅",
+        message: `A Meta validou com sucesso seu Webhook do Instagram! Token recebido: "${token}" foi aceito pelo servidor.`,
+        platform: "instagram",
+        type: "success",
+        time: "Agora mesmo",
+        read: false
+      });
+
       res.setHeader("Content-Type", "text/plain");
-      return res.status(200).send(challenge);
+      return res.status(200).send(String(challenge));
     } else {
       console.log("[Meta Instagram Webhook] Erro na verificação: token incorreto");
+      
+      db.notifications.unshift({
+        id: "webhook-instagram-err-" + Math.random().toString(36).substr(2, 4),
+        title: "Erro no Webhook Instagram ⚠️",
+        message: `Tentativa de conexão da Meta no Instagram foi recusada! O token enviado pela Meta foi "${token}", mas o servidor esperava "${savedVerifyToken}".`,
+        platform: "instagram",
+        type: "alert",
+        time: "Agora mesmo",
+        read: false
+      });
+
       return res.sendStatus(403);
     }
   }
