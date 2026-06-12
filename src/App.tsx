@@ -2659,12 +2659,16 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                           <p><strong>Configurar o Webhook na Meta:</strong> Na área de Webhooks do seu App Meta, preencha as seguintes configurações de destino:</p>
                           
                           <div className="space-y-1.5 mt-2 bg-slate-950 p-2 rounded-lg border border-slate-800 font-mono text-[10px] text-slate-300 select-all">
-                            <p><strong>Callback URL:</strong> {window.location.origin}/api/webhook/instagram</p>
+                            <p><strong>Callback URL:</strong> {window.location.origin.replace("ais-dev-", "ais-pre-")}/api/webhook/instagram</p>
                             <p><strong>Verify Token:</strong> {apiCredentials.whatsapp?.verifyToken || "viralyze_token"}</p>
+                          </div>
+
+                          <div className="mt-2 text-[10px] text-amber-400 bg-amber-500/5 border border-amber-500/20 p-2 rounded-lg leading-normal">
+                            ⚠️ <strong>Atenção:</strong> Use obrigatoriamente a URL acima com subdomínio <code className="text-amber-300 font-mono">ais-pre-</code>. A URL que você vê na barra do seu navegador com <code className="text-slate-350 font-mono">ais-dev-</code> é privada e protegida por login, fazendo com que os servidores da Meta recebam bloqueio de segurança ao tentar fazer a validação.
                           </div>
                           
                           <p className="text-[10px] text-slate-450 mt-1 leading-normal">
-                            Assine os tópicos <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">comments</code> e/or <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">messages</code>. Agora toda interação real de comprador no feed ou inbox será capturada instantaneamente neste CRM!
+                            Assine os tópicos <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">comments</code> e/ou <code className="text-pink-400 font-mono bg-pink-500/10 px-1 rounded">messages</code>. Agora toda interação real de comprador no feed ou inbox será capturada instantaneamente neste CRM!
                           </p>
                         </div>
                       </div>
@@ -2732,9 +2736,14 @@ Pecinha top de linha, encaixou perfeito no meu headphone.`
                       <p className="font-bold text-slate-200">Parâmetros do Webhook Meta:</p>
                       <p>Nas configurações de Webhook do WhatsApp no painel de desenvolvedores, use:</p>
                       <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-850 font-mono text-[10px] text-cyan-400 mt-2 select-all">
-                        <p><strong>Callback URL:</strong> {window.location.origin}/api/webhook/whatsapp</p>
+                        <p><strong>Callback URL:</strong> {window.location.origin.replace("ais-dev-", "ais-pre-")}/api/webhook/whatsapp</p>
                         <p><strong>Verify Token:</strong> {apiCredentials.whatsapp?.verifyToken || "viralyze_token"}</p>
                       </div>
+
+                      <div className="mt-2 text-[10px] text-amber-400 bg-amber-500/5 border border-amber-500/20 p-2 rounded-lg leading-normal">
+                        ⚠️ <strong>Atenção:</strong> Use obrigatoriamente a URL acima com subdomínio <code className="text-amber-300 font-mono">ais-pre-</code>. A URL com <code className="text-slate-350 font-mono">ais-dev-</code> que aparece no seu navegador é privada e protegida por login, o que bloqueia o acesso externo da Meta na validação direta do Webhook.
+                      </div>
+
                       <p className="text-[9.5px] text-slate-500 mt-1 leading-normal">
                         Assine o campo <code className="text-cyan-400 font-mono bg-cyan-500/10 px-1 rounded">messages</code> para carregar mensagens reais.
                       </p>
