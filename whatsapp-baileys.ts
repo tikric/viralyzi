@@ -1,8 +1,24 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, WASocket } from "@whiskeysockets/baileys";
+import * as baileysModule from "@whiskeysockets/baileys";
+import { useMultiFileAuthState, DisconnectReason, WASocket } from "@whiskeysockets/baileys";
 import pino from "pino";
 import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
+
+// Resolve makeWASocket function in a highly robust way to support both ESM/CommonJS contexts
+let makeWASocket: any;
+const bMod = baileysModule as any;
+if (typeof bMod === 'function') {
+  makeWASocket = bMod;
+} else if (typeof bMod.default === 'function') {
+  makeWASocket = bMod.default;
+} else if (bMod.default && typeof bMod.default.default === 'function') {
+  makeWASocket = bMod.default.default;
+} else if (typeof bMod.makeWASocket === 'function') {
+  makeWASocket = bMod.makeWASocket;
+} else {
+  makeWASocket = bMod.default;
+}
 
 let sock: WASocket | null = null;
 let connectionStatus: "offline" | "connecting" | "qr" | "connected" | "error" = "offline";
