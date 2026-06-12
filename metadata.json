@@ -1,0 +1,6 @@
+{
+  "name": "Viralyze 3D Shop",
+  "description": "Plataforma de IA com Roteirizador, Gerador por foto de peça 3D e disparador diário de mensagens integrado para TikTok, Instagram e WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
